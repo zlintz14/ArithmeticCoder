@@ -17,13 +17,46 @@ public class EncodeVideo {
 		String inputFileName = System.getProperty("user.dir") + "/data/out.dat";
 		String outputFileName = System.getProperty("user.dir") + "/data/compressed.dat";
 
-		int range_bit_width = 40;
+		int rangeBitWidth = 40;
 
 		System.out.println("Encoding text file: " + inputFileName);
 		System.out.println("Output file: " + outputFileName);
-		System.out.println("Range Register Bit Width: " + range_bit_width);
+		System.out.println("Range Register Bit Width: " + rangeBitWidth);
 
-		int totalBytes = (int) new File(inputFileName).length();
+		int numFrames = (int) new File(inputFileName).length() / 4096;
+		
+		FileInputStream fis = new FileInputStream(inputFileName);
+
+		LinkedList<Integer[][]> frames = new LinkedList<Integer[][]>();
+		
+		int nextByte, row = 0, col = 0, frame = 0, leadingByte = 0;
+		Integer[][] currFrame = null;
+		while((nextByte = fis.read()) != -1) {
+			if(row == 0 && col == 0) {
+				frames.add(new Integer[64][64]);
+				currFrame = frames.get(frame);
+				frame++;
+				
+				currFrame[row][col] = nextByte;
+				col++;
+			} else if(col != 64) {
+				currFrame[row][col] = nextByte - leadingByte;
+				col++;
+			} else {
+				row++;
+				if(row == 64 && col == 64) {
+					row = 0;
+					col = 0;
+				} else {
+					col = 0;
+					currFrame[row][col] = nextByte;
+					col++;
+				}
+			}
+			leadingByte = nextByte;
+			
+		}
+		fis.close();
 		
 		Integer[] pixelIntensity = new Integer[256];
 		for(int i = 0; i < 256; i++) {
@@ -39,14 +72,32 @@ public class EncodeVideo {
 			models[i] = new DifferentialCodingModel(pixelIntensity);
 		}
 		
-		ArithmeticEncoder<Integer> encoder = new ArithmeticEncoder<Integer>(range_bit_width);
+		ArithmeticEncoder<Integer> encoder = new ArithmeticEncoder<Integer>(rangeBitWidth);
 		
 		FileOutputStream fos = new FileOutputStream(outputFileName);
 		OutputStreamBitSink bit_sink = new OutputStreamBitSink(fos);
 		
-		LinkedList<Integer[][]> frames = new LinkedList<Integer[][]>();
-
+		fis = new FileInputStream(inputFileName);
 		
+		// Use model 0 as initial model.
+		DifferentialCodingModel model = models[0];
+		
+		for(int i = 0; i < numFrames; i++) {
+			for(int j = 0; j < 4096; j++) {
+				int nextPixel = fis.read();
+				int firstPixInRow = 0;
+				if(j % 64 == 0)  {
+					// get firstPixInRow
+				}
+				// Update model used
+				
+				// Set up next model based on symbol just encoded
+				model = models[nextPixel];
+			}
+			
+		}
+
+		fis.close();
 		fos.close();
 	}
 	
