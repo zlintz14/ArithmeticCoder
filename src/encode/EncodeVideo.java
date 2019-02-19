@@ -5,7 +5,11 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
 
 import ac.ArithmeticEncoder;
 import io.InputStreamBitSource;
@@ -29,9 +33,15 @@ public class EncodeVideo {
 
 		LinkedList<Integer[][]> frames = new LinkedList<Integer[][]>();
 		
-		int nextByte, row = 0, col = 0, frame = 0, leadingByte = 0;
+		int[] histogram = new int[256];
+		for(int i = 0; i < histogram.length; i++) {
+			histogram[i] = 0;
+		}
+		
+		int nextByte, row = 0, col = 0, frame = 0, leadingByte = 0;		
 		Integer[][] currFrame = null;
 		while((nextByte = fis.read()) != -1) {
+			histogram[nextByte]++;
 			if(row == 0 && col == 0) {
 				frames.add(new Integer[64][64]);
 				currFrame = frames.get(frame);
@@ -54,9 +64,18 @@ public class EncodeVideo {
 				}
 			}
 			leadingByte = nextByte;
-			
 		}
 		fis.close();
+		
+		
+		Map<Integer, Double> intenstityToProbability = new HashMap<Integer, Double>();
+		double currProbability = 0.0;
+		for(int i = 0; i < histogram.length; i++) {
+			double tempProbability = (double) histogram[i] / (numFrames * 4096);
+			currProbability += tempProbability;
+			intenstityToProbability.put(i, currProbability);
+		}
+		
 		
 		Integer[] pixelIntensity = new Integer[256];
 		for(int i = 0; i < 256; i++) {
@@ -69,7 +88,7 @@ public class EncodeVideo {
 		
 		for(int i = 0; i < 256; i++) {
 			// Create new model with default count of 1 for all pixel intensities
-			models[i] = new DifferentialCodingModel(pixelIntensity);
+			models[i] = new DifferentialCodingModel(pixelIntensity, intenstityToProbability);
 		}
 		
 		ArithmeticEncoder<Integer> encoder = new ArithmeticEncoder<Integer>(rangeBitWidth);
@@ -100,5 +119,5 @@ public class EncodeVideo {
 		fis.close();
 		fos.close();
 	}
-	
+
 }

@@ -1,38 +1,40 @@
 package encode;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import ac.SourceModel;
 
 public class DifferentialCodingModel implements SourceModel<Integer> {
 
 	private Integer[] pixelIntensity;
-	private int[] counts;
+	private Map<Integer, Double> intenstityToProbability;
 	
-	public DifferentialCodingModel(Integer[] pixelIntensity) {
+	public DifferentialCodingModel(Integer[] pixelIntensity, Map<Integer, Double> intenstityToProbability) {
 		assert pixelIntensity != null: "pixelIntensity is null";
+		assert intenstityToProbability != null: "intenstityToProbability is null";
 		assert pixelIntensity.length > 1: "pixelIntensity only has 1 element in it";
-		counts = new int[pixelIntensity.length];
-		for (int i = 0; i < counts.length; i++) {
-			counts[i] = 1;
-		}
 		
 		this.pixelIntensity = pixelIntensity.clone();
+		this.intenstityToProbability = new HashMap<Integer, Double>(intenstityToProbability);
 	}
 	
 	@Override
 	public int size() {
-		// TODO Auto-generated method stub
-		return 0;
+		return pixelIntensity.length;
 	}
 
 	@Override
 	public Integer get(int index) {
-		// TODO Auto-generated method stub
-		return null;
+		assert index >= 0 && index < size();
+		
+		return pixelIntensity[index];
 	}
 
 	@Override
+	//higher probabilties near prior value
 	public double cdfLow(int index) {
-		// TODO Auto-generated method stub
+		
 		return 0;
 	}
 
