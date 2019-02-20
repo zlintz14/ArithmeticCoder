@@ -32,21 +32,41 @@ public class DecodeVideo {
 		
 		Map<Integer, Double> intenstityToSummedProbability = new HashMap<Integer, Double>();
 		double currProbability = 0.0;
-		for(int i = 0; i < 256; i++) {
+		int index = 0;
+		for(int i = 0; i < (256 * 2) - 1; i++) {
 			double tempProbability = (double) bitSource.next(32) / totalNumPixels;
 			currProbability += tempProbability;
-			intenstityToSummedProbability.put(i, currProbability);
+			
+			if(index == 256) {
+				currProbability = tempProbability;
+			}
+			
+			if(i >= 256) {
+				intenstityToSummedProbability.put(index, currProbability);
+			} else {
+				intenstityToSummedProbability.put(index, currProbability);
+			}
+			index++;
 		}
 		
-		Integer[] pixelIntensity = new Integer[256];
-		for (int i=0; i<256; i++) {
-			pixelIntensity[i] = i;
+		Integer[] pixelDifferences = new Integer[(256 * 2) - 1];
+		index = 0;
+		for(int i = 0; i < pixelDifferences.length; i++) {
+			if(index == 256) {
+				index = 1;
+			}
+			if(i >= 256) {
+				pixelDifferences[i] = index * -1; 
+			} else {
+				pixelDifferences[i] = index;
+			}
+			index++;
 		}
 		
-		DifferentialCodingModel[] models = new DifferentialCodingModel[256];
+		DifferentialCodingModel[] models = new DifferentialCodingModel[(256 * 2) - 1];
 		
-		for(int i = 0; i < 256; i++) {
-			models[i] = new DifferentialCodingModel(pixelIntensity, intenstityToSummedProbability);
+		for(int i = 0; i < models.length; i++) {
+			models[i] = new DifferentialCodingModel(pixelDifferences, intenstityToSummedProbability);
 		}
 		
 		System.out.println("Uncompressing file: " + inputFileName);
@@ -59,22 +79,28 @@ public class DecodeVideo {
 		// Use model 0 as initial model.
 		DifferentialCodingModel model = models[0];	
 		
-		int lastPixel = Integer.MIN_VALUE;
+		int lastPixel = Integer.MIN_VALUE, lastDifferentialPixel = Integer.MIN_VALUE;
 		for(int i = 0; i < totalNumPixels; i++) {
 			if(i % 64 == 0) {
 				int pixel = 0;
 				pixel = decoder.decode(model, bitSource);
 				fos.write(pixel);
 				lastPixel = pixel;
+				lastDifferentialPixel = pixel;
 			} else {
 				int pixel = decoder.decode(model, bitSource);
+				if(pixel < 0) {
+					lastDifferentialPixel = 255 + (pixel * -1);
+				} else {
+					lastDifferentialPixel = pixel;
+				}
 				pixel = lastPixel + pixel;
 				fos.write(pixel);
 				lastPixel = pixel;
 			}
 			
 			// Set up next model based on pixel just encoded
-			model = models[lastPixel];
+			model = models[lastDifferentialPixel];
 			
 			//Make updates to Model
 			if(i % 63 == 0) {

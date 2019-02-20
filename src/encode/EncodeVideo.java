@@ -31,7 +31,7 @@ public class EncodeVideo {
 
 		LinkedList<Integer[][]> frames = new LinkedList<Integer[][]>();
 		
-		int[] histogram = new int[256];
+		int[] histogram = new int[(256*2) - 1];
 		for(int i = 0; i < histogram.length; i++) {
 			histogram[i] = 0;
 		}
@@ -53,9 +53,13 @@ public class EncodeVideo {
 				col++;
 				histogram[nextByte]++;
 			} else if(col != 64) {
-				currFrame[row][col] = nextByte - prevByte;
+				int difference = nextByte - prevByte;
+				currFrame[row][col] = difference;
 				col++;
-				histogram[nextByte]++;
+				if(difference < 0) {
+					difference = 255 + (difference * -1);
+				}
+				histogram[difference]++;
 				if(col == 64) {
 					row++;
 				}
@@ -79,24 +83,44 @@ public class EncodeVideo {
 		 */
 		Map<Integer, Double> intenstityToSummedProbability = new HashMap<Integer, Double>();
 		double currProbability = 0.0;
+		int index = 0;
 		for(int i = 0; i < histogram.length; i++) {
 			double tempProbability = (double) histogram[i] / (numFrames * 4096);
 			currProbability += tempProbability;
-			intenstityToSummedProbability.put(i, currProbability);
+			
+			if(index == 256) {
+				currProbability = tempProbability;
+			}
+			
+			if(i >= 256) {
+				intenstityToSummedProbability.put(index, currProbability);
+			} else {
+				intenstityToSummedProbability.put(index, currProbability);
+			}
+			index++;
 		}
 		
 		
-		Integer[] pixelIntensity = new Integer[256];
-		for(int i = 0; i < 256; i++) {
-			pixelIntensity[i] = i;
+		Integer[] pixelDifferences = new Integer[(256 * 2) - 1];
+		index = 0;
+		for(int i = 0; i < pixelDifferences.length; i++) {
+			if(index == 256) {
+				index = 1;
+			}
+			if(i >= 256) {
+				pixelDifferences[i] = index * -1; 
+			} else {
+				pixelDifferences[i] = index;
+			}
+			index++;
 		}
 
 		// Create 256 models. Model chosen depends on intensity of pixel prior to 
 				// pixel being encoded.
-		DifferentialCodingModel[] models = new DifferentialCodingModel[256];
+		DifferentialCodingModel[] models = new DifferentialCodingModel[(256 * 2) - 1];
 		
-		for(int i = 0; i < 256; i++) {
-			models[i] = new DifferentialCodingModel(pixelIntensity, intenstityToSummedProbability);
+		for(int i = 0; i < models.length; i++) {
+			models[i] = new DifferentialCodingModel(pixelDifferences, intenstityToSummedProbability);
 		}
 		
 		ArithmeticEncoder<Integer> encoder = new ArithmeticEncoder<Integer>(rangeBitWidth);
@@ -111,7 +135,7 @@ public class EncodeVideo {
 		bitSink.write(rangeBitWidth, 8);
 		
 		//encode frequencies at beginning of compressed file as header
-		for(int i = 0; i < 256; i++) {
+		for(int i = 0; i < histogram.length; i++) {
 			bitSink.write(histogram[i], 32);
 		}
 		
@@ -131,10 +155,12 @@ public class EncodeVideo {
 					} else {
 						int pixel = arr[i][j];
 						encoder.encode(pixel, model, bitSink);
-						pixel = lastPixel + pixel;
 						lastPixel = pixel;
 					}
 					
+					if(lastPixel < 0) {
+						lastPixel = 255 + (lastPixel * -1);
+					}
 					// Set up next model based on pixel just encoded
 					model = models[lastPixel];
 					
