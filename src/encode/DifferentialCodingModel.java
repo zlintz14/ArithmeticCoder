@@ -34,8 +34,7 @@ public class DifferentialCodingModel implements SourceModel<Integer> {
 	@Override
 	//higher probabilties near prior value
 	public double cdfLow(int index) {
-		
-		return 0;
+		return intenstityToProbability.get(index);
 	}
 
 }

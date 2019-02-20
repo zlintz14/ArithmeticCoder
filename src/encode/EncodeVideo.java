@@ -5,14 +5,11 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 
 import ac.ArithmeticEncoder;
-import io.InputStreamBitSource;
 import io.OutputStreamBitSink;
 
 public class EncodeVideo {
@@ -38,10 +35,14 @@ public class EncodeVideo {
 			histogram[i] = 0;
 		}
 		
-		int nextByte, row = 0, col = 0, frame = 0, leadingByte = 0;		
+		int nextByte, row = 0, col = 0, frame = 0, prevByte = 0;		
 		Integer[][] currFrame = null;
 		while((nextByte = fis.read()) != -1) {
-			histogram[nextByte]++;
+			if(row == 64 && col == 64) {
+				row = 0;
+				col = 0;
+			}
+			
 			if(row == 0 && col == 0) {
 				frames.add(new Integer[64][64]);
 				currFrame = frames.get(frame);
@@ -49,31 +50,38 @@ public class EncodeVideo {
 				
 				currFrame[row][col] = nextByte;
 				col++;
+				histogram[nextByte]++;
 			} else if(col != 64) {
-				currFrame[row][col] = nextByte - leadingByte;
+				currFrame[row][col] = nextByte - prevByte;
 				col++;
-			} else {
-				row++;
-				if(row == 64 && col == 64) {
-					row = 0;
-					col = 0;
-				} else {
-					col = 0;
-					currFrame[row][col] = nextByte;
-					col++;
+				histogram[nextByte]++;
+				if(col == 64) {
+					row++;
 				}
+			} else {
+				col = 0;
+				currFrame[row][col] = nextByte;
+				col++;
+				histogram[nextByte]++;
 			}
-			leadingByte = nextByte;
+			prevByte = nextByte;
 		}
 		fis.close();
 		
 		
-		Map<Integer, Double> intenstityToProbability = new HashMap<Integer, Double>();
+		/* note this maps the pixel intensity to the total probability at the time a new entry in the set is inserted into the map.
+		 * for example, if intensity 0 had a probability of 0.001, 0.001 is inserted, if intensity 1 had a probability of
+		 * 0.002, its probability inserted into the map is 0.003, if intensity 2 had a probability of 0.004, 
+		 * its probability inserted into the map is 0.007, etc. This is done because the only purpose of the map
+		 * is for cdfLow, and summing the probabilities 1 time and storing them in the map avoids summing the probabilities to the 
+		 * given index every time cdfLow is called and thus saves time
+		 */
+		Map<Integer, Double> intenstityToSummedProbability = new HashMap<Integer, Double>();
 		double currProbability = 0.0;
 		for(int i = 0; i < histogram.length; i++) {
 			double tempProbability = (double) histogram[i] / (numFrames * 4096);
 			currProbability += tempProbability;
-			intenstityToProbability.put(i, currProbability);
+			intenstityToSummedProbability.put(i, currProbability);
 		}
 		
 		
@@ -88,36 +96,52 @@ public class EncodeVideo {
 		
 		for(int i = 0; i < 256; i++) {
 			// Create new model with default count of 1 for all pixel intensities
-			models[i] = new DifferentialCodingModel(pixelIntensity, intenstityToProbability);
+			models[i] = new DifferentialCodingModel(pixelIntensity, intenstityToSummedProbability);
 		}
 		
 		ArithmeticEncoder<Integer> encoder = new ArithmeticEncoder<Integer>(rangeBitWidth);
 		
 		FileOutputStream fos = new FileOutputStream(outputFileName);
-		OutputStreamBitSink bit_sink = new OutputStreamBitSink(fos);
+		OutputStreamBitSink bitSink = new OutputStreamBitSink(fos);
 		
-		fis = new FileInputStream(inputFileName);
+		//encode frequencies at beginning of compressed file as header
+		for(int i = 0; i < 256; i++) {
+			bitSink.write(histogram[i], 32);
+		}
+				
+		//4 bytes for number of syms encoded
+		bitSink.write(numFrames * 4096, 32);
 		
 		// Use model 0 as initial model.
-		DifferentialCodingModel model = models[0];
+		DifferentialCodingModel model = models[0];	
 		
-		for(int i = 0; i < numFrames; i++) {
-			for(int j = 0; j < 4096; j++) {
-				int nextPixel = fis.read();
-				int firstPixInRow = 0;
-				if(j % 64 == 0)  {
-					// get firstPixInRow
+		/* note these nested for-loops are iterating through the entire file byte by byte, I just need 
+		 * the nested for-loops to properly iterate over my linked list of 2-d arrays representing the individual frames
+		 */
+		for(Integer[][] arr: frames) {	
+			int lastPixel = arr[0][0];
+			for(int i = 0; i < arr.length; i++) {
+				for(int j = 0; j < arr[i].length; j++) {
+					if(j == 0) {
+						encoder.encode(arr[i][j], model, bitSink);
+						lastPixel = arr[i][j];
+					} else {
+						int temp = arr[i][j];
+						temp = lastPixel + temp;
+						encoder.encode(temp, model, bitSink);
+						lastPixel = temp;
+					}
+					// Set up next model based on symbol just encoded
+					model = models[lastPixel];
 				}
-				// Update model used
 				
-				// Set up next model based on symbol just encoded
-				model = models[nextPixel];
 			}
-			
-		}
-
-		fis.close();
+		}		
+		encoder.emitMiddle(bitSink);
+		bitSink.padToWord();
 		fos.close();
+		
+		System.out.println("Done");
 	}
 
 }
