@@ -40,10 +40,10 @@ public class ArithmeticEncoder<T> {
 		
 		_low = new_low;
 		_high = new_high;
-		
+				
 		while (highBit(_low) == highBit(_high)) {
 			bit_sink.write(highBit(_low), 1);
-			
+
 			while(_pending_bits > 0) {
 				bit_sink.write(1-highBit(_low), 1);
 				_pending_bits--;
@@ -62,6 +62,7 @@ public class ArithmeticEncoder<T> {
 
 			_pending_bits++;
 		}		
+		
 	}
 	
 	public void emitMiddle(BitSink bitSink) throws IOException {

@@ -11,6 +11,7 @@ import java.util.Map;
 
 import ac.ArithmeticEncoder;
 import io.OutputStreamBitSink;
+import model.DifferentialCodingModel;
 
 public class EncodeVideo {
 
@@ -73,7 +74,7 @@ public class EncodeVideo {
 		 * for example, if intensity 0 had a probability of 0.001, 0.001 is inserted, if intensity 1 had a probability of
 		 * 0.002, its probability inserted into the map is 0.003, if intensity 2 had a probability of 0.004, 
 		 * its probability inserted into the map is 0.007, etc. This is done because the only purpose of the map
-		 * is for cdfLow, and summing the probabilities 1 time and storing them in the map avoids summing the probabilities to the 
+		 * is for cdfLow, and summing the probabilities one time and storing them in the map avoids summing the probabilities to the 
 		 * given index every time cdfLow is called and thus saves time
 		 */
 		Map<Integer, Double> intenstityToSummedProbability = new HashMap<Integer, Double>();
@@ -95,7 +96,6 @@ public class EncodeVideo {
 		DifferentialCodingModel[] models = new DifferentialCodingModel[256];
 		
 		for(int i = 0; i < 256; i++) {
-			// Create new model with default count of 1 for all pixel intensities
 			models[i] = new DifferentialCodingModel(pixelIntensity, intenstityToSummedProbability);
 		}
 		
@@ -104,13 +104,16 @@ public class EncodeVideo {
 		FileOutputStream fos = new FileOutputStream(outputFileName);
 		OutputStreamBitSink bitSink = new OutputStreamBitSink(fos);
 		
+		//4 bytes for number of pixels encoded
+		bitSink.write(numFrames * 4096, 32);
+		
+		// Next byte is the width of the range registers
+		bitSink.write(rangeBitWidth, 8);
+		
 		//encode frequencies at beginning of compressed file as header
 		for(int i = 0; i < 256; i++) {
 			bitSink.write(histogram[i], 32);
 		}
-				
-		//4 bytes for number of syms encoded
-		bitSink.write(numFrames * 4096, 32);
 		
 		// Use model 0 as initial model.
 		DifferentialCodingModel model = models[0];	
@@ -126,13 +129,21 @@ public class EncodeVideo {
 						encoder.encode(arr[i][j], model, bitSink);
 						lastPixel = arr[i][j];
 					} else {
-						int temp = arr[i][j];
-						temp = lastPixel + temp;
-						encoder.encode(temp, model, bitSink);
-						lastPixel = temp;
+						int pixel = arr[i][j];
+						encoder.encode(pixel, model, bitSink);
+						pixel = lastPixel + pixel;
+						lastPixel = pixel;
 					}
-					// Set up next model based on symbol just encoded
+					
+					// Set up next model based on pixel just encoded
 					model = models[lastPixel];
+					
+					//Make updates to Model
+					if(j == 63) {
+						model.setLastPixel(0);
+					} else {
+						model.setLastPixel(lastPixel);
+					}
 				}
 				
 			}
