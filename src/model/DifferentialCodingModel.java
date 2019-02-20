@@ -9,7 +9,6 @@ public class DifferentialCodingModel implements SourceModel<Integer>{
 
 	private Integer[] pixelDifferences;
 	private Map<Integer, Double> intenstityToProbability;
-	private int lastPixel;
 	
 	public DifferentialCodingModel(Integer[] pixelDifferences, Map<Integer, Double> intenstityToProbability) {
 		assert pixelDifferences != null: "pixelIntensity is null";
@@ -18,17 +17,7 @@ public class DifferentialCodingModel implements SourceModel<Integer>{
 		
 		this.pixelDifferences = pixelDifferences.clone();
 		this.intenstityToProbability = new HashMap<Integer, Double>(intenstityToProbability);
-		lastPixel = 0;
 	}
-	
-	public void setLastPixel(int lastPixel) {
-		this.lastPixel = lastPixel;
-	}
-	
-//	@Override
-//	public int getLastPixel() {
-//		return lastPixel;
-//	}
 	
 	@Override
 	public int size() {
@@ -39,19 +28,11 @@ public class DifferentialCodingModel implements SourceModel<Integer>{
 	public Integer get(int index) {
 		assert index > -size() && index < size();
 		
-		if(index < 0) {
-			index = 255 + (index * -1);
-		}
-		
 		return pixelDifferences[index];
 	}
 
 	@Override
 	public double cdfLow(int index) {
-		if(index < 0) {
-			index = 255 + (index * -1);
-		}
-		
 		return intenstityToProbability.get(index);
 	}
 

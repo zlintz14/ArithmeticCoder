@@ -1,7 +1,6 @@
 package decode;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
@@ -101,13 +100,6 @@ public class DecodeVideo {
 			
 			// Set up next model based on pixel just encoded
 			model = models[lastDifferentialPixel];
-			
-			//Make updates to Model
-			if(i % 63 == 0) {
-				model.setLastPixel(0);
-			} else {
-				model.setLastPixel(lastPixel);
-			}
 			
 		}
 		

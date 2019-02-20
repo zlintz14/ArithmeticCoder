@@ -163,13 +163,6 @@ public class EncodeVideo {
 					}
 					// Set up next model based on pixel just encoded
 					model = models[lastPixel];
-					
-					//Make updates to Model
-					if(j == 63) {
-						model.setLastPixel(0);
-					} else {
-						model.setLastPixel(lastPixel);
-					}
 				}
 				
 			}
