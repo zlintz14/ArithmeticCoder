@@ -26,13 +26,15 @@ public class DifferentialCodingModel implements SourceModel<Integer>{
 
 	@Override
 	public Integer get(int index) {
-		assert index > -size() && index < size();
+		assert index >= 0 && index < size();
 		
 		return pixelDifferences[index];
 	}
 
 	@Override
 	public double cdfLow(int index) {
+		assert index >= 0 && index < size();
+		
 		return intenstityToProbability.get(index);
 	}
 

@@ -3,13 +3,11 @@ package decode;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import ac.ArithmeticDecoder;
+import app.FreqCountIntegerSymbolModel;
 import io.InputStreamBitSource;
 import io.InsufficientBitsLeftException;
-import model.DifferentialCodingModel;
 
 public class DecodeVideo {
 
@@ -27,34 +25,14 @@ public class DecodeVideo {
 		// Read in range bit width and setup the decoder
 		int rangeBitWidth = bitSource.next(8);
 		ArithmeticDecoder<Integer> decoder = new ArithmeticDecoder<Integer>(rangeBitWidth);
-
 		
-		Map<Integer, Double> intenstityToSummedProbability = new HashMap<Integer, Double>();
-		double currProbability = 0.0;
+		Integer[] pixelDifferences = new Integer[(256 * 2) + 1];
 		int index = 0;
-		for(int i = 0; i < (256 * 2) - 1; i++) {
-			double tempProbability = (double) bitSource.next(32) / totalNumPixels;
-			currProbability += tempProbability;
-			
-			if(index == 256) {
-				currProbability = tempProbability;
-			}
-			
-			if(i >= 256) {
-				intenstityToSummedProbability.put(index, currProbability);
-			} else {
-				intenstityToSummedProbability.put(index, currProbability);
-			}
-			index++;
-		}
-		
-		Integer[] pixelDifferences = new Integer[(256 * 2) - 1];
-		index = 0;
 		for(int i = 0; i < pixelDifferences.length; i++) {
-			if(index == 256) {
+			if(index == 257) {
 				index = 1;
 			}
-			if(i >= 256) {
+			if(i > 256) {
 				pixelDifferences[i] = index * -1; 
 			} else {
 				pixelDifferences[i] = index;
@@ -62,10 +40,10 @@ public class DecodeVideo {
 			index++;
 		}
 		
-		DifferentialCodingModel[] models = new DifferentialCodingModel[(256 * 2) - 1];
+		FreqCountIntegerSymbolModel[] models = new FreqCountIntegerSymbolModel[(256 * 2) + 1];
 		
 		for(int i = 0; i < models.length; i++) {
-			models[i] = new DifferentialCodingModel(pixelDifferences, intenstityToSummedProbability);
+			models[i] = new FreqCountIntegerSymbolModel(pixelDifferences);
 		}
 		
 		System.out.println("Uncompressing file: " + inputFileName);
@@ -76,7 +54,7 @@ public class DecodeVideo {
 		FileOutputStream fos = new FileOutputStream(outputFileName);
 		
 		// Use model 0 as initial model.
-		DifferentialCodingModel model = models[0];	
+		FreqCountIntegerSymbolModel model = models[0];	
 		
 		int lastPixel = Integer.MIN_VALUE, lastDifferentialPixel = Integer.MIN_VALUE;
 		for(int i = 0; i < totalNumPixels; i++) {
@@ -89,7 +67,7 @@ public class DecodeVideo {
 			} else {
 				int pixel = decoder.decode(model, bitSource);
 				if(pixel < 0) {
-					lastDifferentialPixel = 255 + (pixel * -1);
+					lastDifferentialPixel = 256 + (pixel * -1);
 				} else {
 					lastDifferentialPixel = pixel;
 				}
@@ -97,13 +75,14 @@ public class DecodeVideo {
 				fos.write(pixel);
 				lastPixel = pixel;
 			}
-			
+			// Update model used
+			model.addToCount(lastDifferentialPixel);
 			// Set up next model based on pixel just encoded
 			model = models[lastDifferentialPixel];
 			
 		}
 		
-		System.out.println("Done.");
+		System.out.println("Done");
 		fos.flush();
 		fos.close();
 		fis.close();		

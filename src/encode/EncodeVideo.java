@@ -5,13 +5,11 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.Map;
 
 import ac.ArithmeticEncoder;
+import app.FreqCountIntegerSymbolModel;
 import io.OutputStreamBitSink;
-import model.DifferentialCodingModel;
 
 public class EncodeVideo {
 
@@ -31,7 +29,7 @@ public class EncodeVideo {
 
 		LinkedList<Integer[][]> frames = new LinkedList<Integer[][]>();
 		
-		int[] histogram = new int[(256*2) - 1];
+		int[] histogram = new int[(256*2) + 1];
 		for(int i = 0; i < histogram.length; i++) {
 			histogram[i] = 0;
 		}
@@ -73,41 +71,13 @@ public class EncodeVideo {
 		}
 		fis.close();
 		
-		
-		/* note this maps the pixel intensity to the total probability at the time a new entry in the set is inserted into the map.
-		 * for example, if intensity 0 had a probability of 0.001, 0.001 is inserted, if intensity 1 had a probability of
-		 * 0.002, its probability inserted into the map is 0.003, if intensity 2 had a probability of 0.004, 
-		 * its probability inserted into the map is 0.007, etc. This is done because the only purpose of the map
-		 * is for cdfLow, and summing the probabilities one time and storing them in the map avoids summing the probabilities to the 
-		 * given index every time cdfLow is called and thus saves time
-		 */
-		Map<Integer, Double> intenstityToSummedProbability = new HashMap<Integer, Double>();
-		double currProbability = 0.0;
+		Integer[] pixelDifferences = new Integer[(256 * 2) + 1];
 		int index = 0;
-		for(int i = 0; i < histogram.length; i++) {
-			double tempProbability = (double) histogram[i] / (numFrames * 4096);
-			currProbability += tempProbability;
-			
-			if(index == 256) {
-				currProbability = tempProbability;
-			}
-			
-			if(i >= 256) {
-				intenstityToSummedProbability.put(index, currProbability);
-			} else {
-				intenstityToSummedProbability.put(index, currProbability);
-			}
-			index++;
-		}
-		
-		
-		Integer[] pixelDifferences = new Integer[(256 * 2) - 1];
-		index = 0;
 		for(int i = 0; i < pixelDifferences.length; i++) {
-			if(index == 256) {
+			if(index == 257) {
 				index = 1;
 			}
-			if(i >= 256) {
+			if(i > 256) {
 				pixelDifferences[i] = index * -1; 
 			} else {
 				pixelDifferences[i] = index;
@@ -117,10 +87,10 @@ public class EncodeVideo {
 
 		// Create 256 models. Model chosen depends on intensity of pixel prior to 
 				// pixel being encoded.
-		DifferentialCodingModel[] models = new DifferentialCodingModel[(256 * 2) - 1];
+		FreqCountIntegerSymbolModel[] models = new FreqCountIntegerSymbolModel[(256 * 2) + 1];
 		
 		for(int i = 0; i < models.length; i++) {
-			models[i] = new DifferentialCodingModel(pixelDifferences, intenstityToSummedProbability);
+			models[i] = new FreqCountIntegerSymbolModel(pixelDifferences);
 		}
 		
 		ArithmeticEncoder<Integer> encoder = new ArithmeticEncoder<Integer>(rangeBitWidth);
@@ -134,13 +104,8 @@ public class EncodeVideo {
 		// Next byte is the width of the range registers
 		bitSink.write(rangeBitWidth, 8);
 		
-		//encode frequencies at beginning of compressed file as header
-		for(int i = 0; i < histogram.length; i++) {
-			bitSink.write(histogram[i], 32);
-		}
-		
 		// Use model 0 as initial model.
-		DifferentialCodingModel model = models[0];	
+		FreqCountIntegerSymbolModel model = models[0];	
 		
 		/* note these nested for-loops are iterating through the entire file byte by byte, I just need 
 		 * the nested for-loops to properly iterate over my linked list of 2-d arrays representing the individual frames
@@ -159,8 +124,11 @@ public class EncodeVideo {
 					}
 					
 					if(lastPixel < 0) {
-						lastPixel = 255 + (lastPixel * -1);
+						lastPixel = 256 + (lastPixel * -1);
 					}
+					// Update model used
+					model.addToCount(lastPixel);
+					
 					// Set up next model based on pixel just encoded
 					model = models[lastPixel];
 				}
